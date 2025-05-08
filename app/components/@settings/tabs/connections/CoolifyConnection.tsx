@@ -48,8 +48,10 @@ export default function CoolifyConnection() {
         ? baseUrl.slice(0, -1)
         : baseUrl;
         
-      // Remove port if specified
-      baseUrl = baseUrl.replace(/:\d+$/, '');
+      // Check if port is specified, add 8000 if not
+      if (!baseUrl.match(/:\d+$/)) {
+        baseUrl = `${baseUrl}:8000`;
+      }
       
       // Ensure no /api in the base URL
       baseUrl = baseUrl.replace(/\/api\/?$/, '');
@@ -126,7 +128,7 @@ export default function CoolifyConnection() {
                 value={connection.url}
                 onChange={(e) => updateCoolifyConnection({ ...connection, url: e.target.value })}
                 disabled={connecting}
-                placeholder="http://coolify.example.com"
+                placeholder="http://cool.howieduhzit.best:8000"
                 className={classNames(
                   'w-full px-3 py-2 rounded-lg text-sm',
                   'bg-[#F8F8F8] dark:bg-[#1A1A1A]',
@@ -137,7 +139,7 @@ export default function CoolifyConnection() {
                 )}
               />
               <div className="mt-2 text-sm text-bolt-elements-textSecondary">
-                <span>Just enter the base URL like http://cool.howieduhzit.best</span>
+                <span>Just enter the base URL like http://cool.howieduhzit.best:8000</span>
               </div>
             </div>
 

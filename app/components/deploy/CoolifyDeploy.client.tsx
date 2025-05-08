@@ -21,8 +21,10 @@ function normalizeCoolifyUrl(url: string): string {
     ? normalizedUrl.slice(0, -1)
     : normalizedUrl;
     
-  // Remove port if specified
-  normalizedUrl = normalizedUrl.replace(/:\d+$/, '');
+  // Check if port is specified, add 8000 if not
+  if (!normalizedUrl.match(/:\d+$/)) {
+    normalizedUrl = `${normalizedUrl}:8000`;
+  }
   
   // Ensure no /api in the base URL
   normalizedUrl = normalizedUrl.replace(/\/api\/?$/, '');
