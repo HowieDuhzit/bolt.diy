@@ -32,15 +32,27 @@ export default function CoolifyConnection() {
     isConnecting.set(true);
 
     try {
+      // Normalize URL format - allow input like @http://cool.howieduhzit.best
+      let baseUrl = connection.url.trim();
+      if (baseUrl.startsWith('@')) {
+        baseUrl = baseUrl.substring(1);
+      }
+      
       // Validate URL format
-      if (!connection.url.startsWith('http')) {
+      if (!baseUrl.startsWith('http')) {
         throw new Error('Coolify URL must start with http:// or https://');
       }
 
       // Remove trailing slash if present
-      const baseUrl = connection.url.endsWith('/')
-        ? connection.url.slice(0, -1)
-        : connection.url;
+      baseUrl = baseUrl.endsWith('/')
+        ? baseUrl.slice(0, -1)
+        : baseUrl;
+        
+      // Remove port if specified
+      baseUrl = baseUrl.replace(/:\d+$/, '');
+      
+      // Ensure no /api in the base URL
+      baseUrl = baseUrl.replace(/\/api\/?$/, '');
 
       const response = await fetch(`${baseUrl}/api/v1/user`, {
         headers: {
@@ -114,7 +126,7 @@ export default function CoolifyConnection() {
                 value={connection.url}
                 onChange={(e) => updateCoolifyConnection({ ...connection, url: e.target.value })}
                 disabled={connecting}
-                placeholder="https://coolify.example.com"
+                placeholder="http://coolify.example.com"
                 className={classNames(
                   'w-full px-3 py-2 rounded-lg text-sm',
                   'bg-[#F8F8F8] dark:bg-[#1A1A1A]',
@@ -124,6 +136,9 @@ export default function CoolifyConnection() {
                   'disabled:opacity-50',
                 )}
               />
+              <div className="mt-2 text-sm text-bolt-elements-textSecondary">
+                <span>Just enter the base URL like http://cool.howieduhzit.best</span>
+              </div>
             </div>
 
             <div>

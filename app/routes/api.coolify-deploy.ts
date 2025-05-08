@@ -1,16 +1,41 @@
 import { type ActionFunctionArgs, type LoaderFunctionArgs, json } from '@remix-run/cloudflare';
 import type { CoolifyProjectInfo } from '~/types/coolify';
 
+// Helper function to normalize Coolify URLs
+function normalizeCoolifyUrl(url: string): string {
+  // Remove @ prefix if present
+  let normalizedUrl = url.trim();
+  if (normalizedUrl.startsWith('@')) {
+    normalizedUrl = normalizedUrl.substring(1);
+  }
+  
+  // Remove trailing slash
+  normalizedUrl = normalizedUrl.endsWith('/')
+    ? normalizedUrl.slice(0, -1)
+    : normalizedUrl;
+    
+  // Remove port if specified
+  normalizedUrl = normalizedUrl.replace(/:\d+$/, '');
+  
+  // Ensure no /api in the base URL
+  normalizedUrl = normalizedUrl.replace(/\/api\/?$/, '');
+  
+  return normalizedUrl;
+}
+
 // Add loader function to handle GET requests
 export async function loader({ request }: LoaderFunctionArgs) {
   const url = new URL(request.url);
   const projectId = url.searchParams.get('projectId');
-  const baseUrl = url.searchParams.get('baseUrl');
+  let baseUrl = url.searchParams.get('baseUrl');
   const token = url.searchParams.get('token');
 
   if (!projectId || !token || !baseUrl) {
     return json({ error: 'Missing projectId, baseUrl or token' }, { status: 400 });
   }
+
+  // Normalize the base URL
+  baseUrl = normalizeCoolifyUrl(baseUrl);
 
   try {
     // Get project info
@@ -75,13 +100,16 @@ export async function action({ request }: ActionFunctionArgs) {
       return json({ error: 'Coolify instance URL is required' }, { status: 400 });
     }
 
+    // Normalize the base URL
+    const normalizedBaseUrl = normalizeCoolifyUrl(baseUrl);
+
     let targetProjectId = projectId;
     let projectInfo: CoolifyProjectInfo | undefined;
 
     // If no projectId provided, create a new project
     if (!targetProjectId) {
       const projectName = `bolt-diy-${chatId}-${Date.now()}`;
-      const createProjectResponse = await fetch(`${baseUrl}/api/v1/projects`, {
+      const createProjectResponse = await fetch(`${normalizedBaseUrl}/api/v1/projects`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -115,7 +143,7 @@ export async function action({ request }: ActionFunctionArgs) {
       };
     } else {
       // Get existing project info
-      const projectResponse = await fetch(`${baseUrl}/api/v1/projects/${targetProjectId}`, {
+      const projectResponse = await fetch(`${normalizedBaseUrl}/api/v1/projects/${targetProjectId}`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -138,7 +166,7 @@ export async function action({ request }: ActionFunctionArgs) {
       } else {
         // If project doesn't exist, create a new one
         const projectName = `bolt-diy-${chatId}-${Date.now()}`;
-        const createProjectResponse = await fetch(`${baseUrl}/api/v1/projects`, {
+        const createProjectResponse = await fetch(`${normalizedBaseUrl}/api/v1/projects`, {
           method: 'POST',
           headers: {
             Authorization: `Bearer ${token}`,
@@ -180,7 +208,7 @@ export async function action({ request }: ActionFunctionArgs) {
     const base64Content = Buffer.from(buffer).toString('base64');
 
     // Create deployment
-    const deployResponse = await fetch(`${baseUrl}/api/v1/projects/${targetProjectId}/deploy`, {
+    const deployResponse = await fetch(`${normalizedBaseUrl}/api/v1/projects/${targetProjectId}/deploy`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${token}`,
@@ -208,7 +236,7 @@ export async function action({ request }: ActionFunctionArgs) {
     let deploymentStatus = 'pending';
 
     while (retryCount < maxRetries) {
-      const statusResponse = await fetch(`${baseUrl}/api/v1/projects/${targetProjectId}`, {
+      const statusResponse = await fetch(`${normalizedBaseUrl}/api/v1/projects/${targetProjectId}`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },

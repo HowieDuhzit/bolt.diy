@@ -3,9 +3,31 @@ import type { CoolifyConnection, CoolifyUser } from '~/types/coolify';
 import { logStore } from './logs';
 import { toast } from 'react-toastify';
 
+// Helper function to normalize Coolify URLs
+function normalizeCoolifyUrl(url: string): string {
+  // Remove @ prefix if present
+  let normalizedUrl = url.trim();
+  if (normalizedUrl.startsWith('@')) {
+    normalizedUrl = normalizedUrl.substring(1);
+  }
+  
+  // Remove trailing slash
+  normalizedUrl = normalizedUrl.endsWith('/')
+    ? normalizedUrl.slice(0, -1)
+    : normalizedUrl;
+    
+  // Remove port if specified
+  normalizedUrl = normalizedUrl.replace(/:\d+$/, '');
+  
+  // Ensure no /api in the base URL
+  normalizedUrl = normalizedUrl.replace(/\/api\/?$/, '');
+  
+  return normalizedUrl;
+}
+
 // Initialize with stored connection or environment variable
 const storedConnection = typeof window !== 'undefined' ? localStorage.getItem('coolify_connection') : null;
-const envUrl = import.meta.env.VITE_COOLIFY_URL;
+const envUrl = import.meta.env.VITE_COOLIFY_URL ? normalizeCoolifyUrl(import.meta.env.VITE_COOLIFY_URL) : '';
 const envToken = import.meta.env.VITE_COOLIFY_API_TOKEN;
 
 // If we have environment variables but no stored connection, initialize with them
@@ -33,9 +55,10 @@ export async function initializeCoolifyConnection() {
 
   try {
     isConnecting.set(true);
+    const normalizedUrl = normalizeCoolifyUrl(envUrl);
 
     // Fetch user info from Coolify API
-    const response = await fetch(`${envUrl}/api/v1/user`, {
+    const response = await fetch(`${normalizedUrl}/api/v1/user`, {
       headers: {
         Authorization: `Bearer ${envToken}`,
       },
@@ -50,7 +73,7 @@ export async function initializeCoolifyConnection() {
     // Update the connection state
     const connectionData: Partial<CoolifyConnection> = {
       user: userData.data as CoolifyUser,
-      url: envUrl,
+      url: normalizedUrl,
       token: envToken,
     };
 
@@ -61,7 +84,7 @@ export async function initializeCoolifyConnection() {
     updateCoolifyConnection(connectionData);
 
     // Fetch initial stats
-    await fetchCoolifyStats(envUrl, envToken);
+    await fetchCoolifyStats(normalizedUrl, envToken);
   } catch (error) {
     console.error('Error initializing Coolify connection:', error);
     logStore.logError('Failed to initialize Coolify connection', { error });
@@ -72,6 +95,12 @@ export async function initializeCoolifyConnection() {
 
 export const updateCoolifyConnection = (updates: Partial<CoolifyConnection>) => {
   const currentState = coolifyConnection.get();
+  
+  // If URL is being updated, normalize it
+  if (updates.url) {
+    updates.url = normalizeCoolifyUrl(updates.url);
+  }
+  
   const newState = { ...currentState, ...updates };
   coolifyConnection.set(newState);
 
@@ -84,9 +113,10 @@ export const updateCoolifyConnection = (updates: Partial<CoolifyConnection>) => 
 export async function fetchCoolifyStats(url: string, token: string) {
   try {
     isFetchingStats.set(true);
+    const normalizedUrl = normalizeCoolifyUrl(url);
 
     // Fetch projects from Coolify API
-    const projectsResponse = await fetch(`${url}/api/v1/projects`, {
+    const projectsResponse = await fetch(`${normalizedUrl}/api/v1/projects`, {
       headers: {
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
