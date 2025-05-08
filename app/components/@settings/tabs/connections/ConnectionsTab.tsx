@@ -8,6 +8,7 @@ import VercelConnection from './VercelConnection';
 // Use React.lazy for dynamic imports
 const GitHubConnection = React.lazy(() => import('./GithubConnection'));
 const NetlifyConnection = React.lazy(() => import('./NetlifyConnection'));
+const CoolifyConnection = React.lazy(() => import('./CoolifyConnection'));
 
 // Loading fallback component
 const LoadingFallback = () => (
@@ -122,6 +123,15 @@ export default function ConnectionsTab() {
                 <div className="text-bolt-elements-textPrimary dark:text-bolt-elements-textPrimary">
                   VITE_NETLIFY_ACCESS_TOKEN=your_token_here
                 </div>
+                <div className="text-bolt-elements-textSecondary dark:text-bolt-elements-textSecondary mt-2">
+                  # Coolify Authentication
+                </div>
+                <div className="text-bolt-elements-textPrimary dark:text-bolt-elements-textPrimary">
+                  VITE_COOLIFY_URL=https://your-coolify-instance.com
+                </div>
+                <div className="text-bolt-elements-textPrimary dark:text-bolt-elements-textPrimary">
+                  VITE_COOLIFY_API_TOKEN=your_api_token_here
+                </div>
               </div>
               <div className="mt-3 text-xs text-bolt-elements-textSecondary dark:text-bolt-elements-textSecondary space-y-1">
                 <p>
@@ -158,6 +168,9 @@ export default function ConnectionsTab() {
         </Suspense>
         <Suspense fallback={<LoadingFallback />}>
           <VercelConnection />
+        </Suspense>
+        <Suspense fallback={<LoadingFallback />}>
+          <CoolifyConnection />
         </Suspense>
       </div>
 

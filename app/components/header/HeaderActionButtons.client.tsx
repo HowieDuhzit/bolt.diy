@@ -1,14 +1,17 @@
 import { useStore } from '@nanostores/react';
 import useViewport from '~/lib/hooks';
 import { chatStore } from '~/lib/stores/chat';
+import { coolifyConnection } from '~/lib/stores/coolify';
 import { netlifyConnection } from '~/lib/stores/netlify';
 import { vercelConnection } from '~/lib/stores/vercel';
 import { workbenchStore } from '~/lib/stores/workbench';
 import { classNames } from '~/utils/classNames';
 import { useEffect, useRef, useState } from 'react';
 import { streamingState } from '~/lib/stores/streaming';
+import { CoolifyDeploymentLink } from '~/components/chat/CoolifyDeploymentLink.client';
 import { NetlifyDeploymentLink } from '~/components/chat/NetlifyDeploymentLink.client';
 import { VercelDeploymentLink } from '~/components/chat/VercelDeploymentLink.client';
+import { useCoolifyDeploy } from '~/components/deploy/CoolifyDeploy.client';
 import { useVercelDeploy } from '~/components/deploy/VercelDeploy.client';
 import { useNetlifyDeploy } from '~/components/deploy/NetlifyDeploy.client';
 
@@ -19,11 +22,12 @@ export function HeaderActionButtons({}: HeaderActionButtonsProps) {
   const { showChat } = useStore(chatStore);
   const netlifyConn = useStore(netlifyConnection);
   const vercelConn = useStore(vercelConnection);
+  const coolifyConn = useStore(coolifyConnection);
   const [activePreviewIndex] = useState(0);
   const previews = useStore(workbenchStore.previews);
   const activePreview = previews[activePreviewIndex];
   const [isDeploying, setIsDeploying] = useState(false);
-  const [deployingTo, setDeployingTo] = useState<'netlify' | 'vercel' | null>(null);
+  const [deployingTo, setDeployingTo] = useState<'netlify' | 'vercel' | 'coolify' | null>(null);
   const isSmallViewport = useViewport(1024);
   const canHideChat = showWorkbench || !showChat;
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -31,6 +35,7 @@ export function HeaderActionButtons({}: HeaderActionButtonsProps) {
   const isStreaming = useStore(streamingState);
   const { handleVercelDeploy } = useVercelDeploy();
   const { handleNetlifyDeploy } = useNetlifyDeploy();
+  const { handleCoolifyDeploy } = useCoolifyDeploy();
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -61,6 +66,18 @@ export function HeaderActionButtons({}: HeaderActionButtonsProps) {
 
     try {
       await handleNetlifyDeploy();
+    } finally {
+      setIsDeploying(false);
+      setDeployingTo(null);
+    }
+  };
+
+  const onCoolifyDeploy = async () => {
+    setIsDeploying(true);
+    setDeployingTo('coolify');
+
+    try {
+      await handleCoolifyDeploy();
     } finally {
       setIsDeploying(false);
       setDeployingTo(null);
@@ -126,6 +143,26 @@ export function HeaderActionButtons({}: HeaderActionButtonsProps) {
               />
               <span className="mx-auto">{!vercelConn.user ? 'No Vercel Account Connected' : 'Deploy to Vercel'}</span>
               {vercelConn.user && <VercelDeploymentLink />}
+            </Button>
+            <Button
+              active
+              onClick={() => {
+                onCoolifyDeploy();
+                setIsDropdownOpen(false);
+              }}
+              disabled={isDeploying || !activePreview || !coolifyConn.user}
+              className="flex items-center w-full px-4 py-2 text-sm text-bolt-elements-textPrimary hover:bg-bolt-elements-item-backgroundActive gap-2 rounded-md group relative"
+            >
+              <img
+                className="w-5 h-5"
+                height="24"
+                width="24"
+                crossOrigin="anonymous"
+                src="https://raw.githubusercontent.com/coollabsio/coolify/main/.coolify-logo"
+                alt="coolify"
+              />
+              <span className="mx-auto">{!coolifyConn.user ? 'No Coolify Account Connected' : 'Deploy to Coolify'}</span>
+              {coolifyConn.user && <CoolifyDeploymentLink />}
             </Button>
             <Button
               active={false}
