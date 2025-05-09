@@ -155,7 +155,7 @@ export default function CoolifyConnection() {
                 )}
               />
               <div className="mt-2 text-sm text-bolt-elements-textSecondary">
-                <span>Enter the full URL with port (e.g., http://cool.howieduhzit.best:8000)</span>
+                <span>Enter the full URL with port 8000 (e.g., http://cool.howieduhzit.best:8000)</span>
               </div>
             </div>
 
