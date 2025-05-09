@@ -11,6 +11,11 @@ function normalizeCoolifyUrl(url: string): string {
     normalizedUrl = normalizedUrl.substring(1);
   }
   
+  // Validate URL has http/https protocol
+  if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
+    normalizedUrl = `http://${normalizedUrl}`;
+  }
+  
   // Remove trailing slash
   normalizedUrl = normalizedUrl.endsWith('/')
     ? normalizedUrl.slice(0, -1)
@@ -60,7 +65,7 @@ export async function initializeCoolifyConnection() {
     const normalizedUrl = normalizeCoolifyUrl(envUrl);
 
     // Fetch user info from Coolify API
-    const response = await fetch(`${normalizedUrl}/api/v1/user`, {
+    const response = await fetch(`${normalizedUrl}/api/v1/teams/authenticated`, {
       headers: {
         Authorization: `Bearer ${envToken}`,
       },
@@ -72,9 +77,17 @@ export async function initializeCoolifyConnection() {
 
     const userData = await response.json();
 
+    // Extract team data and create user info
+    const teamData = userData.data;
+    const userInfo = {
+      name: teamData.name || 'Coolify Team',
+      email: teamData.email || '',
+      id: teamData.id
+    };
+
     // Update the connection state
     const connectionData: Partial<CoolifyConnection> = {
-      user: userData.data as CoolifyUser,
+      user: userInfo as CoolifyUser,
       url: normalizedUrl,
       token: envToken,
     };

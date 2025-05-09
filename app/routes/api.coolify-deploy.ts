@@ -9,6 +9,11 @@ function normalizeCoolifyUrl(url: string): string {
     normalizedUrl = normalizedUrl.substring(1);
   }
   
+  // Add http:// if missing
+  if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
+    normalizedUrl = `http://${normalizedUrl}`;
+  }
+  
   // Remove trailing slash
   normalizedUrl = normalizedUrl.endsWith('/')
     ? normalizedUrl.slice(0, -1)
@@ -210,7 +215,11 @@ export async function action({ request }: ActionFunctionArgs) {
     const base64Content = Buffer.from(buffer).toString('base64');
 
     // Create deployment
-    const deployResponse = await fetch(`${normalizedBaseUrl}/api/v1/projects/${targetProjectId}/deploy`, {
+    // Save the files to a temporary location and tag them for deployment
+    const tempDeployTag = `bolt-deployment-${Date.now()}`;
+    
+    // First, upload the files (Coolify doesn't have a direct API for this, so we'll use the project endpoint)
+    const uploadResponse = await fetch(`${normalizedBaseUrl}/api/v1/projects/${targetProjectId}/deploy`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${token}`,
@@ -218,37 +227,78 @@ export async function action({ request }: ActionFunctionArgs) {
       },
       body: JSON.stringify({
         zipFile: base64Content,
+        tag: tempDeployTag, // Add tag to identify for deployment
       }),
     });
 
+    if (!uploadResponse.ok) {
+      let errorMessage = 'Failed to upload files for deployment';
+      try {
+        const errorData = await uploadResponse.json();
+        errorMessage = `File upload failed: ${errorData.message || errorData.error || `API error (${uploadResponse.status})`}`;
+      } catch (parseError) {
+        errorMessage = `File upload failed with status ${uploadResponse.status}: ${uploadResponse.statusText}`;
+      }
+      return json({ error: errorMessage }, { status: 400 });
+    }
+
+    // Now trigger the deployment using the /deploy endpoint
+    const deployResponse = await fetch(`${normalizedBaseUrl}/api/v1/deploy?uuid=${targetProjectId}`, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
     if (!deployResponse.ok) {
-      const errorData = await deployResponse.json();
-      return json(
-        { error: `Failed to create deployment: ${errorData.message || errorData.error || 'Unknown error'}` },
-        { status: 400 },
-      );
+      let errorMessage = 'Failed to trigger deployment';
+      try {
+        const errorData = await deployResponse.json();
+        errorMessage = `Deployment failed: ${errorData.message || errorData.error || `API error (${deployResponse.status})`}`;
+      } catch (parseError) {
+        errorMessage = `Deployment failed with status ${deployResponse.status}: ${deployResponse.statusText}`;
+      }
+      return json({ error: errorMessage }, { status: 400 });
     }
 
     const deployData = await deployResponse.json();
-    const deploymentId = deployData.data?.id;
+    
+    // Extract the deployment ID from the response
+    // The format is { deployments: [{ deployment_uuid: "xxx", resource_uuid: "yyy", message: "zzz" }] }
+    const deploymentInfo = deployData.deployments?.[0];
+    const deploymentId = deploymentInfo?.deployment_uuid;
 
+    if (!deploymentId) {
+      // If no deployment ID was returned, we'll still consider it a success but note it
+      console.warn('Deployment triggered but no deployment ID was returned:', deployData);
+    }
+    
     // Check for deployment status
     let retryCount = 0;
-    const maxRetries = 60;
+    const maxRetries = 60; // 2 minutes max (with 2 second intervals)
     let deploymentStatus = 'pending';
 
     while (retryCount < maxRetries) {
-      const statusResponse = await fetch(`${normalizedBaseUrl}/api/v1/projects/${targetProjectId}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      try {
+        const statusResponse = await fetch(`${normalizedBaseUrl}/api/v1/projects/${targetProjectId}`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
 
-      if (statusResponse.ok) {
+        if (!statusResponse.ok) {
+          console.warn(`Failed to check deployment status: ${statusResponse.status} ${statusResponse.statusText}`);
+          // Continue retrying even if status check fails
+          retryCount++;
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+          continue;
+        }
+
         const statusData = await statusResponse.json();
         const project = statusData.data;
         
         if (!project) {
+          console.warn('Project data not found in status check');
           break;
         }
 
@@ -264,6 +314,8 @@ export async function action({ request }: ActionFunctionArgs) {
         if (deploymentStatus === 'complete' || deploymentStatus === 'error') {
           break;
         }
+      } catch (statusError) {
+        console.error('Error checking deployment status:', statusError);
       }
 
       retryCount++;
@@ -271,7 +323,7 @@ export async function action({ request }: ActionFunctionArgs) {
     }
 
     if (deploymentStatus === 'error') {
-      return json({ error: 'Deployment failed' }, { status: 500 });
+      return json({ error: 'Deployment failed on Coolify side. Check Coolify dashboard for details.' }, { status: 500 });
     }
 
     if (retryCount >= maxRetries) {

@@ -38,11 +38,11 @@ export default function CoolifyConnection() {
         baseUrl = baseUrl.substring(1);
       }
       
-      // Validate URL format
-      if (!baseUrl.startsWith('http')) {
-        throw new Error('Coolify URL must start with http:// or https://');
+      // Add http:// if missing
+      if (!baseUrl.startsWith('http://') && !baseUrl.startsWith('https://')) {
+        baseUrl = `http://${baseUrl}`;
       }
-
+      
       // Remove trailing slash if present
       baseUrl = baseUrl.endsWith('/')
         ? baseUrl.slice(0, -1)
@@ -56,7 +56,7 @@ export default function CoolifyConnection() {
       // Ensure no /api in the base URL
       baseUrl = baseUrl.replace(/\/api\/?$/, '');
 
-      const response = await fetch(`${baseUrl}/api/v1/user`, {
+      const response = await fetch(`${baseUrl}/api/v1/teams/authenticated`, {
         headers: {
           Authorization: `Bearer ${connection.token}`,
           'Content-Type': 'application/json',
@@ -64,7 +64,13 @@ export default function CoolifyConnection() {
       });
 
       if (!response.ok) {
-        throw new Error('Invalid URL, token or unauthorized');
+        if (response.status === 404) {
+          throw new Error(`Connection failed: URL is incorrect or Coolify API unavailable (${response.status}). Make sure port 8000 is used.`);
+        } else if (response.status === 401) {
+          throw new Error('Authentication failed: Your API token may be invalid or expired');
+        } else {
+          throw new Error(`Connection error: ${response.status} ${response.statusText}`);
+        }
       }
 
       const userData = await response.json();
@@ -73,8 +79,18 @@ export default function CoolifyConnection() {
         throw new Error('Invalid response from Coolify API');
       }
 
+      // Extract team and user info from the response
+      const teamData = userData.data;
+      
+      // Use the team admin as the user, or create a placeholder
+      const userInfo = {
+        name: teamData.name || 'Coolify Team',
+        email: teamData.email || '',
+        id: teamData.id
+      };
+
       updateCoolifyConnection({
-        user: userData.data,
+        user: userInfo,
         url: baseUrl,
         token: connection.token,
       });
@@ -139,7 +155,7 @@ export default function CoolifyConnection() {
                 )}
               />
               <div className="mt-2 text-sm text-bolt-elements-textSecondary">
-                <span>Just enter the base URL like http://cool.howieduhzit.best:8000</span>
+                <span>Enter the full URL with port (e.g., http://cool.howieduhzit.best:8000)</span>
               </div>
             </div>
 
@@ -161,7 +177,7 @@ export default function CoolifyConnection() {
                 )}
               />
               <div className="mt-2 text-sm text-bolt-elements-textSecondary">
-                <span>Find your token in Coolify dashboard under Settings → API → API Tokens</span>
+                <span>Create an API token in Coolify at Settings → Keys & Tokens → API Tokens. Important: Ensure it has full permissions (*) by unchecking both "Read Only" and "View sensitive Data" options.</span>
               </div>
             </div>
 
